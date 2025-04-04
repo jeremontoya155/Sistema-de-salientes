@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram AI Bot - Configuración</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 700px; margin: auto; background-color: #f4f4f4; }
+        h1 { text-align: center; color: #333; }
+        .form-container { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        input[type="file"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; /* Important */
+        }
+        textarea { min-height: 80px; resize: vertical; }
+        .radio-group label { display: inline-block; margin-right: 15px; font-weight: normal; }
+        .radio-group input[type="radio"] { margin-right: 5px; }
+        button {
+            background-color: #5cb85c;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: background-color 0.3s ease;
+        }
+        button:hover { background-color: #4cae4c; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .message {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .message.success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
+        .message.error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
+        .message.info { background-color: #d9edf7; color: #31708f; border: 1px solid #bce8f1; }
+        .hidden { display: none; }
+        .env-info { font-size: 0.9em; color: #777; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
+        .env-info strong { color: #555; }
+    </style>
+</head>
+<body>
+
+    <h1>Configuración del Bot de Instagram</h1>
+
+    <div class="form-container">
+
+        <% if (message) { %>
+            <div class="message <%= message.type %>">
+                <%= message.text %>
+            </div>
+        <% } %>
+
+        <form action="/start" method="POST" enctype="multipart/form-data" id="botForm">
+
+            <label for="sessionId">Instagram Session ID:</label>
+            <input type="password" id="sessionId" name="sessionId" required placeholder="Pega tu sessionid aquí">
+            <small>Este valor es sensible y se usa para autenticarte. Encuéntralo en las cookies de tu navegador.</small><br><br>
+
+            <label for="proxy">Proxy (Opcional):</label>
+            <input type="text" id="proxy" name="proxy" placeholder="Ej: http://usuario:contraseña@host:puerto">
+            <small>Útil si experimentas bloqueos de IP.</small><br><br>
+
+            <label for="csvFile">Archivo CSV:</label>
+            <input type="file" id="csvFile" name="csvFile" accept=".csv" required>
+            <small>Debe contener al menos una columna 'userName'. Para filtrar por nombre, necesita 'fullName'.</small><br><br>
+
+            <label>Tipo de CSV:</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="csvType" value="direct" checked onchange="toggleKeywords(false)"> Directo (usa 'userName')
+                </label>
+                <label>
+                    <input type="radio" name="csvType" value="followers" onchange="toggleKeywords(true)"> Seguidores (filtra por 'fullName')
+                </label>
+            </div>
+            <br>
+
+            <div id="keywordsDiv" class="hidden">
+                <label for="filterKeywords">Palabras Clave para Filtrar 'fullName' (separadas por coma):</label>
+                <input type="text" id="filterKeywords" name="filterKeywords" placeholder="Ej: juan, perez, tienda">
+            </div>
+
+            <label for="context">Contexto/Objetivo del Mensaje para la IA:</label>
+            <textarea id="context" name="context" required placeholder="Ej: invitar a seguir mi nueva cuenta de fotografía, ofrecer descuento en tienda online, colaborar en proyecto musical..."></textarea>
+            <small>Sé claro y conciso. La IA usará esto para generar mensajes.</small><br><br>
+
+            <label for="maxMessages">Máximo de Mensajes a Enviar (0 = todos):</label>
+            <input type="number" id="maxMessages" name="maxMessages" value="0" min="0">
+            <small>Limita el número de usuarios a contactar en esta ejecución.</small><br><br>
+
+            <label for="baseDelay">Retardo Base Entre Mensajes (segundos):</label>
+            <input type="number" id="baseDelay" name="baseDelay" value="90" min="30">
+            <small>Recomendado: 90-180 segundos para mayor seguridad. Se añadirá un retardo aleatorio adicional.</small><br><br>
+
+            <button type="submit" id="submitButton" <%= isRunning ? 'disabled' : '' %>>
+                 <%= isRunning ? 'Bot en Ejecución...' : 'Iniciar Bot' %>
+            </button>
+        </form>
+
+         <div class="env-info">
+             <!-- Mostrar información útil del entorno si es necesario -->
+             <% if (env.MONGO_URI && env.OPENAI_API_KEY) { %>
+                 <p><strong>Estado:</strong> Claves MongoDB y OpenAI cargadas desde <code>.env</code>.</p>
+             <% } else { %>
+                 <p style="color: red;"><strong>Advertencia:</strong> Falta MONGO_URI u OPENAI_API_KEY en <code>.env</code>.</p>
+             <% } %>
+             <!-- Puedes añadir más info si quieres -->
+         </div>
+
+    </div>
+
+    <script>
+        function toggleKeywords(show) {
+            const keywordsDiv = document.getElementById('keywordsDiv');
+            const keywordsInput = document.getElementById('filterKeywords');
+            if (show) {
+                keywordsDiv.classList.remove('hidden');
+                keywordsInput.required = true; // Hacer requerido si se muestra
+            } else {
+                keywordsDiv.classList.add('hidden');
+                keywordsInput.required = false; // No requerido si está oculto
+                keywordsInput.value = ''; // Limpiar valor al ocultar
+            }
+        }
+
+        // Opcional: Deshabilitar botón al enviar para evitar doble click
+        const form = document.getElementById('botForm');
+        const submitButton = document.getElementById('submitButton');
+        if (form) {
+            form.addEventListener('submit', () => {
+                 // Solo deshabilita si no está ya corriendo (el estado isRunning lo maneja EJS al renderizar)
+                 if (!submitButton.disabled) {
+                     submitButton.disabled = true;
+                     submitButton.textContent = 'Iniciando...';
+                 }
+            });
+        }
+
+        // Inicializar estado de keywords al cargar la página basado en el radio seleccionado
+        document.addEventListener('DOMContentLoaded', () => {
+             const followersRadio = document.querySelector('input[name="csvType"][value="followers"]');
+             if (followersRadio && followersRadio.checked) {
+                 toggleKeywords(true);
+             } else {
+                 toggleKeywords(false);
+             }
+         });
+
+    </script>
+
+</body>
+</html>
